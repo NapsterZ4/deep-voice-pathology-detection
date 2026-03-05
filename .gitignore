@@ -19,3 +19,4 @@ ipython_config.py
 
 # Personalized directories
 data/
+runs/
