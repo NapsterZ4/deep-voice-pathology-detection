@@ -101,3 +101,16 @@ def pad_or_truncate(waveform, target_length):
         # TRUNCAR
         # ----------------------------------------------------------------------
         return waveform[:target_length]
+
+
+def segment_waveform(waveform, window_len, hop_len):
+    """
+    Segmenta una forma de onda en ventanas de longitud fija.
+    Solo genera ventanas completas (sin padding).
+    """
+    windows = []
+    start = 0
+    while start + window_len <= len(waveform):
+        windows.append(waveform[start : start + window_len])
+        start += hop_len
+    return windows
