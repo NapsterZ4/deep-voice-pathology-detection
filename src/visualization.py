@@ -46,3 +46,25 @@ def plot_before_after_preprocessing(
 
     plt.tight_layout()
     plt.show()
+
+
+def plot_duration_distribution(
+    durations: list[float],
+    stats: dict[str, float],
+) -> None:
+    """Histograma de duraciones con líneas de referencia en P95 y máximo."""
+    arr = np.array(durations)
+
+    plt.figure(figsize=(12, 4))
+    plt.hist(arr, bins=25, color="#607D8B", edgecolor="white", alpha=0.8)
+    plt.axvline(stats["p95"], color="#F44336", linestyle="--", linewidth=2,
+                label=f"P95: {stats['p95']:.2f}s")
+    plt.axvline(stats["max"], color="#FF9800", linestyle="--", linewidth=2,
+                label=f"Máx: {stats['max']:.2f}s")
+    plt.xlabel("Duración (s)")
+    plt.ylabel("Frecuencia")
+    plt.title("Distribución de Duraciones — Señales Procesadas")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()

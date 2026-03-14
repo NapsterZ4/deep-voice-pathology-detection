@@ -69,3 +69,18 @@ def preprocess_waveform(waveform, target_peak=0.95, top_db=20, eps=1e-8):
     wf_trimmed, _ = librosa.effects.trim(wf_normalized, top_db=top_db)
 
     return wf_trimmed
+
+def compute_duration_percentiles(
+    durations: list[float],
+) -> tuple[dict[str, float], dict[str, str]]:
+    """Calcula percentiles clave de las duraciones y los imprime."""
+    arr = np.array(durations)
+    keys = {"p50": 50, "p75": 75, "p90": 90, "p95": 95}
+    labels = {
+        "p50": "Percentil 50 (mediana)", "p75": "Percentil 75",
+        "p90": "Percentil 90", "p95": "Percentil 95", "max": "Máximo"
+    }
+    stats = {k: np.percentile(arr, v) for k, v in keys.items()}
+    stats["max"] = np.max(arr)
+
+    return stats, labels
