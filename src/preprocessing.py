@@ -84,3 +84,20 @@ def compute_duration_percentiles(
     stats["max"] = np.max(arr)
 
     return stats, labels
+
+
+def pad_or_truncate(waveform, target_length):
+    n = len(waveform)
+    if n < target_length:
+
+        # ----------------------------------------------------------------------
+        # PADDING CON CEROS
+        # ----------------------------------------------------------------------
+        padded = np.zeros(target_length)
+        padded[:n] = waveform
+        return padded
+    else:
+        # ----------------------------------------------------------------------
+        # TRUNCAR
+        # ----------------------------------------------------------------------
+        return waveform[:target_length]
