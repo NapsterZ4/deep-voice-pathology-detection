@@ -1,13 +1,12 @@
 import os
 import polars as pl
 import glob
+import numpy as np
+import soundfile as sf
+import librosa
 
 CLASS_MAP = {"PD": 1, "HC": 0}
 
-
-# ------------------------------------------------------------------------------
-# LOAD METADATA
-# ------------------------------------------------------------------------------
 def load_metadata(base_path: str = "data") -> pl.DataFrame:
     records = []
     for class_name, label in CLASS_MAP.items():
@@ -22,3 +21,51 @@ def load_metadata(base_path: str = "data") -> pl.DataFrame:
 
     df = pl.DataFrame(records)
     return df
+
+
+def load_waveforms(
+    df: pl.DataFrame,
+    target_sr: int = 16_000,
+) -> tuple[list[np.ndarray], pl.DataFrame]:
+    waveforms = []
+    durations = []
+
+    for filepath in df["filepath"].to_list():
+        wf, sr_orig = sf.read(filepath)
+
+        # ----------------------------------------------------------------------
+        # CONVERTIR A MONO SI EL AUDIO ESTA EN STEREO
+        # ----------------------------------------------------------------------
+        if wf.ndim > 1:
+            wf = wf.mean(axis=1)
+
+        # ----------------------------------------------------------------------
+        # REMUESTREAR A 16 kHz SI ES NECESARIO
+        # ----------------------------------------------------------------------
+        if sr_orig != target_sr:
+            wf = librosa.resample(wf, orig_sr=sr_orig, target_sr=target_sr)
+
+        waveforms.append(wf)
+        durations.append(len(wf) / target_sr)
+
+    df = df.with_columns(pl.Series("duration_s", durations))
+
+    return waveforms, df
+
+
+def preprocess_waveform(waveform, target_peak=0.95, top_db=20, eps=1e-8):
+    # --------------------------------------------------------------------------
+    # NORMALIZACION PEAK
+    # --------------------------------------------------------------------------
+    peak = np.max(np.abs(waveform))
+    if peak > eps:
+        wf_normalized = target_peak * (waveform / peak)
+    else:
+        wf_normalized = waveform
+
+    # --------------------------------------------------------------------------
+    # RECORTE DE SILENCIOS
+    # --------------------------------------------------------------------------
+    wf_trimmed, _ = librosa.effects.trim(wf_normalized, top_db=top_db)
+
+    return wf_trimmed
