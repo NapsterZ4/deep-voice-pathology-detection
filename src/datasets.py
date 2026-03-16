@@ -58,3 +58,18 @@ class WindowedDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
+
+
+class DualBranchDataset(Dataset):
+    """Dataset que entrega pares (temporal, espectral, label)."""
+
+    def __init__(self, emb_temporal, emb_spectral, labels, indices):
+        self.emb_t = torch.tensor(emb_temporal[indices], dtype=torch.float32)
+        self.emb_s = torch.tensor(emb_spectral[indices], dtype=torch.float32)
+        self.y = torch.tensor(labels[indices], dtype=torch.float32)
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        return self.emb_t[idx], self.emb_s[idx], self.y[idx]

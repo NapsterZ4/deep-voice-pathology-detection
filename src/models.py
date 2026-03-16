@@ -1,5 +1,7 @@
 import torch.nn as nn
 import torch
+import torchvision.models as models
+import torchvision
 import numpy as np
 from transformers import Wav2Vec2Model, HubertModel, WavLMModel
 import math
@@ -986,3 +988,144 @@ class WavLMClassifier(nn.Module):
         pooled = hidden.mean(dim=1)              # (batch, 768)
         out = self.classifier(pooled)
         return out.squeeze(-1)                   # (batch,)
+
+
+class ResNet18Classifier(nn.Module):
+    """
+    ResNet18 con fine-tuning de layer4 para clasificación binaria.
+
+    Estrategia:
+      - Capas 1-3: congeladas (features genéricos de ImageNet)
+      - Layer4: descongelada (se adapta a espectrogramas de voz)
+      - FC: nueva capa lineal (512 → 1) para clasificación binaria
+    """
+    def __init__(self):
+        super().__init__()
+        resnet = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+
+        # Congelar todo
+        for param in resnet.parameters():
+            param.requires_grad = False
+
+        # Descongelar layer4
+        for param in resnet.layer4.parameters():
+            param.requires_grad = True
+
+        # Reemplazar FC
+        resnet.fc = nn.Linear(512, 1)
+
+        self.model = resnet
+
+    def forward(self, x):
+        return self.model(x).squeeze(-1)
+
+
+class DenseNet121SpectralExtractor:
+    def __init__(self, device="mps"):
+        self.device = device
+        densenet = models.densenet121(weights=models.DenseNet121_Weights.IMAGENET1K_V1)
+
+        # Quitar clasificador → output (batch, 1024, 7, 7) → avgpool → (batch, 1024)
+        self.backbone = nn.Sequential(
+            densenet.features,
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+        )
+        self.backbone = self.backbone.to(device)
+        self.backbone.eval()
+        for p in self.backbone.parameters():
+            p.requires_grad = False
+
+        self.normalize = torchvision.transforms.Normalize(
+            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    def extract(self, mel_db):
+        mel_min, mel_max = mel_db.min(), mel_db.max()
+        if mel_max - mel_min > 0:
+            mel_norm = (mel_db - mel_min) / (mel_max - mel_min)
+        else:
+            mel_norm = np.zeros_like(mel_db)
+
+        t = torch.tensor(mel_norm, dtype=torch.float32).unsqueeze(0)
+        t = nn.functional.interpolate(
+            t.unsqueeze(0), size=(224, 224), mode="bilinear", align_corners=False
+        ).squeeze(0)
+        t = t.repeat(3, 1, 1)
+        t = self.normalize(t)
+
+        with torch.no_grad():
+            t = t.unsqueeze(0).to(self.device)
+            features = self.backbone(t)
+            return features.flatten().cpu().numpy()
+
+
+class DualBranchFusionNet(nn.Module):
+    """
+    Dual-Branch Fusion Network para clasificación PD/HD.
+
+    Recibe embeddings pre-extraídos de dos dominios y aprende
+    una fusión óptima mediante gated attention.
+
+    Parámetros entrenables: ~35K (solo proyecciones + gate + clasificador).
+    """
+
+    def __init__(self, dim_temporal=768, dim_spectral=512, dim_proj=128, dropout=0.3):
+        super().__init__()
+
+        # Proyecciones: llevar ambos dominios al mismo espacio
+        self.proj_temporal = nn.Sequential(
+            nn.Linear(dim_temporal, dim_proj),
+            nn.LayerNorm(dim_proj),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        self.proj_spectral = nn.Sequential(
+            nn.Linear(dim_spectral, dim_proj),
+            nn.LayerNorm(dim_proj),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        # Gate: aprende α ∈ [0,1] por muestra
+        # Input: concatenación de ambas proyecciones (2 * dim_proj)
+        self.gate = nn.Sequential(
+            nn.Linear(dim_proj * 2, dim_proj),
+            nn.GELU(),
+            nn.Linear(dim_proj, 1),
+            nn.Sigmoid(),
+        )
+
+        # Clasificador final
+        self.classifier = nn.Sequential(
+            nn.Linear(dim_proj, 64),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(64, 1),
+        )
+
+    def forward(self, z_temporal, z_spectral):
+        """
+        Parameters
+        ----------
+        z_temporal : (batch, 768) — embeddings capa 0 Wav2Vec2
+        z_spectral : (batch, 512) — features ResNet18
+
+        Returns
+        -------
+        logits : (batch,)
+        alpha  : (batch, 1) — peso aprendido del dominio temporal
+        """
+        h_t = self.proj_temporal(z_temporal)    # (batch, 128)
+        h_s = self.proj_spectral(z_spectral)    # (batch, 128)
+
+        # Gate: cuánto pesa el temporal vs espectral
+        concat = torch.cat([h_t, h_s], dim=1)  # (batch, 256)
+        alpha = self.gate(concat)                # (batch, 1)
+
+        # Fusión ponderada
+        h_fused = alpha * h_t + (1 - alpha) * h_s  # (batch, 128)
+
+        logits = self.classifier(h_fused).squeeze(-1)  # (batch,)
+
+        return logits, alpha

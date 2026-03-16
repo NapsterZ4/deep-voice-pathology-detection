@@ -9,6 +9,7 @@ from sklearn.metrics import auc
 from .datasets import build_windowed_dataset
 from sklearn.model_selection import StratifiedKFold
 import polars as pl
+from .models import DualBranchFusionNet
 
 def train_and_evaluate(
         model,
@@ -309,3 +310,64 @@ def run_kfold_search(
         print(f"     Acc:  {np.mean(accs):.3f} ± {np.std(accs):.3f}")
 
     return final_results
+
+def train_dbfnet_fold(train_ds, val_ds, device, lr=1e-3, epochs=100, patience=15, batch_size=16):
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+
+    model = DualBranchFusionNet().to(device)
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+
+    best_val_loss = float("inf")
+    patience_counter = 0
+    best_state = None
+
+    for epoch in range(1, epochs + 1):
+        model.train()
+        for z_t, z_s, y in train_loader:
+            z_t, z_s, y = z_t.to(device), z_s.to(device), y.to(device)
+            optimizer.zero_grad()
+            logits, _ = model(z_t, z_s)
+            loss = criterion(logits, y)
+            loss.backward()
+            optimizer.step()
+
+        scheduler.step()
+
+        model.eval()
+        v_loss, v_total = 0, 0
+        with torch.no_grad():
+            for z_t, z_s, y in val_loader:
+                z_t, z_s, y = z_t.to(device), z_s.to(device), y.to(device)
+                logits, _ = model(z_t, z_s)
+                loss = criterion(logits, y)
+                v_loss += loss.item() * len(y)
+                v_total += len(y)
+
+        val_loss = v_loss / v_total
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                break
+
+    model.load_state_dict(best_state)
+
+    # Evaluar
+    model.eval()
+    all_probs, all_labels, all_alphas = [], [], []
+    with torch.no_grad():
+        for z_t, z_s, y in val_loader:
+            z_t, z_s = z_t.to(device), z_s.to(device)
+            logits, alpha = model(z_t, z_s)
+            probs = torch.sigmoid(logits).cpu().numpy()
+            all_probs.extend(probs)
+            all_labels.extend(y.numpy())
+            all_alphas.extend(alpha.cpu().numpy())
+
+    return np.array(all_labels), np.array(all_probs), np.array(all_alphas)
