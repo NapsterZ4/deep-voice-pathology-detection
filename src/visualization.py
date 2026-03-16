@@ -1,6 +1,7 @@
 import polars as pl
 import numpy as np
 import matplotlib.pyplot as plt
+from .evaluation import confusion_matrix, roc_curve
 
 
 def plot_before_after_preprocessing(

@@ -208,6 +208,8 @@ def train_one_fold(model_class, X_train_f, y_train_f, subj_train_f,
 
 def run_kfold_search(
     df: pl.DataFrame,
+    window_len: int,
+    hop_len: int,
     waveforms_processed: list[np.ndarray],
     model_config: dict,
     hyperparam_grid: dict,
@@ -249,10 +251,10 @@ def run_kfold_search(
 
                 for fold_idx, (train_idx, val_idx) in enumerate(skf.split(all_indices, all_labels)):
                     X_tr, y_tr, s_tr = build_windowed_dataset(
-                        train_idx, all_labels[train_idx], waveforms_processed
+                        train_idx, all_labels[train_idx], waveforms_processed, window_len, hop_len
                     )
                     X_vl, y_vl, s_vl = build_windowed_dataset(
-                        val_idx, all_labels[val_idx], waveforms_processed
+                        val_idx, all_labels[val_idx], waveforms_processed, window_len, hop_len
                     )
 
                     if len(X_tr) == 0 or len(X_vl) == 0:

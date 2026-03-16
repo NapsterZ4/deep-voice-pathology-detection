@@ -103,6 +103,8 @@ def extract_windowed_embeddings(
 
 def run_embedding_svm_search(
     df: pl.DataFrame,
+    window_len: int,
+    hop_len: int,
     waveforms_processed: list[np.ndarray],
     embedding_models: dict[str, str],
     pca_components: list[int],
@@ -134,7 +136,7 @@ def run_embedding_svm_search(
         print(f"{'='*70}")
 
         all_emb, all_emb_labels, all_emb_subjects = extract_windowed_embeddings(
-            waveforms_processed, all_indices, all_labels, hf_model_name
+            waveforms_processed, all_indices, all_labels, hf_model_name, window_len, hop_len
         )
         print(f"  Shape total: {all_emb.shape}")
 
