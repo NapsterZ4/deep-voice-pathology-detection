@@ -1053,17 +1053,13 @@ class DenseNet121SpectralExtractor:
 class DualBranchFusionNet(nn.Module):
     """
     Dual-Branch Fusion Network para clasificación PD/HD.
-
-    Recibe embeddings pre-extraídos de dos dominios y aprende
-    una fusión óptima mediante gated attention.
-
-    Parámetros entrenables: ~35K (solo proyecciones + gate + clasificador).
+    Versión con regularización configurable para búsqueda de hiperparámetros.
     """
 
-    def __init__(self, dim_temporal=768, dim_spectral=512, dim_proj=128, dropout=0.3):
+    def __init__(self, dim_temporal=768, dim_spectral=512, dim_proj=128,
+                 dim_hidden=64, dropout=0.3):
         super().__init__()
 
-        # Proyecciones: llevar ambos dominios al mismo espacio
         self.proj_temporal = nn.Sequential(
             nn.Linear(dim_temporal, dim_proj),
             nn.LayerNorm(dim_proj),
@@ -1078,33 +1074,29 @@ class DualBranchFusionNet(nn.Module):
             nn.Dropout(dropout),
         )
 
-        # Input: concatenación de ambas proyecciones (2 * dim_proj)
         self.gate = nn.Sequential(
             nn.Linear(dim_proj * 2, dim_proj),
             nn.GELU(),
+            nn.Dropout(dropout),
             nn.Linear(dim_proj, 1),
             nn.Sigmoid(),
         )
 
-        # Clasificador final
         self.classifier = nn.Sequential(
-            nn.Linear(dim_proj, 64),
+            nn.Linear(dim_proj, dim_hidden),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(64, 1),
+            nn.Linear(dim_hidden, 1),
         )
 
     def forward(self, z_temporal, z_spectral):
-        h_t = self.proj_temporal(z_temporal)    # (batch, 128)
-        h_s = self.proj_spectral(z_spectral)    # (batch, 128)
+        h_t = self.proj_temporal(z_temporal)
+        h_s = self.proj_spectral(z_spectral)
 
-        # Gate: cuánto pesa el temporal vs espectral
-        concat = torch.cat([h_t, h_s], dim=1)  # (batch, 256)
-        alpha = self.gate(concat)                # (batch, 1)
+        concat = torch.cat([h_t, h_s], dim=1)
+        alpha = self.gate(concat)
 
-        # Fusión ponderada
-        h_fused = alpha * h_t + (1 - alpha) * h_s  # (batch, 128)
-
-        logits = self.classifier(h_fused).squeeze(-1)  # (batch,)
+        h_fused = alpha * h_t + (1 - alpha) * h_s
+        logits = self.classifier(h_fused).squeeze(-1)
 
         return logits, alpha
