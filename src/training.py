@@ -10,6 +10,7 @@ from .datasets import build_windowed_dataset
 from sklearn.model_selection import StratifiedKFold
 import polars as pl
 from .models import DualBranchFusionNet
+from .config import logger
 
 def train_and_evaluate(
         model,
@@ -25,9 +26,9 @@ def train_and_evaluate(
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    # ----------------------------------------------
-    # TENSORBOARD: crear escritor con carpeta por modelo
-    # ----------------------------------------------
+    # --------------------------------------------------------------------------
+    # TENSORBOARD: generador de datos
+    # --------------------------------------------------------------------------
     writer = SummaryWriter(log_dir=f"runs/{model_name}")
 
     history = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": []}
@@ -35,13 +36,17 @@ def train_and_evaluate(
     patience_counter = 0
     best_state = None
 
-    print(f"{'Época':>6} {'Train Loss':>12} {'Val Loss':>12} {'Train Acc':>12} {'Val Acc':>12}")
-    print("-" * 58)
+    logger.info(f"{'Época':>6} "
+                f"{'Train Loss':>12} "
+                f"{'Val Loss':>12}"
+                f" {'Train Acc':>12}"
+                f" {'Val Acc':>12}")
+    logger.info("-" * 58)
 
     for epoch in range(1, epochs + 1):
-        # ----------------------------------------------
+        # ----------------------------------------------------------------------
         # Train
-        # ----------------------------------------------
+        # ----------------------------------------------------------------------
         model.train()
         t_loss, t_correct, t_total = 0, 0, 0
         for x, y in train_loader:
@@ -95,7 +100,13 @@ def train_and_evaluate(
         # Brecha de generalización (útil para detectar overfitting)
         writer.add_scalar("Gap/loss_gap", val_loss - train_loss, epoch)
 
-        print(f"{epoch:>6} {train_loss:>12.4f} {val_loss:>12.4f} {train_acc:>12.3f} {val_acc:>12.3f}")
+        logger.info(f""
+                    f"{epoch:>6} "
+                    f"{train_loss:>12.4f} "
+                    f"{val_loss:>12.4f} "
+                    f"{train_acc:>12.3f} "
+                    f"{val_acc:>12.3f}"
+                    )
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -104,7 +115,7 @@ def train_and_evaluate(
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                print(f"\n⏹ Early stopping en época {epoch}")
+                logger.info(f"\n⏹ Early stopping en época {epoch}")
                 break
 
     # ----------------------------------------------
@@ -235,9 +246,9 @@ def run_kfold_search(
     final_results = {}
 
     for model_name in model_config:
-        print(f"\n{'='*70}")
-        print(f"  {model_name}")
-        print(f"{'='*70}")
+        logger.info(f"\n{'='*70}")
+        logger.info(f"  {model_name}")
+        logger.info(f"{'='*70}")
 
         config = model_config[model_name]
         grid = hyperparam_grid[model_name]
@@ -275,7 +286,7 @@ def run_kfold_search(
                     continue
 
                 mean_auc = np.mean([m["auc"] for m in fold_metrics])
-                print(f"  lr={lr:.0e} bs={bs}  →  AUC={mean_auc:.3f}")
+                logger.info(f"  lr={lr:.0e} bs={bs}  →  AUC={mean_auc:.3f}")
 
                 if mean_auc > best_combo_auc:
                     best_combo_auc = mean_auc
@@ -283,7 +294,7 @@ def run_kfold_search(
                     best_combo_folds = fold_metrics
 
         if best_combo_folds is None:
-            print(f"  ⚠️ No se pudo entrenar {model_name}")
+            logger.warning(f" No se pudo entrenar {model_name}")
             continue
 
         aucs  = [m["auc"] for m in best_combo_folds]
@@ -305,9 +316,9 @@ def run_kfold_search(
             "fold_details": best_combo_folds,
         }
 
-        print(f"\n  ✅ Mejor: lr={best_combo['lr']:.0e} bs={best_combo['batch_size']}")
-        print(f"     AUC:  {np.mean(aucs):.3f} ± {np.std(aucs):.3f}")
-        print(f"     Acc:  {np.mean(accs):.3f} ± {np.std(accs):.3f}")
+        logger.info(f"\n  Mejor: lr={best_combo['lr']:.0e} bs={best_combo['batch_size']}")
+        logger.info(f"     AUC:  {np.mean(aucs):.3f} ± {np.std(aucs):.3f}")
+        logger.info(f"     Acc:  {np.mean(accs):.3f} ± {np.std(accs):.3f}")
 
     return final_results
 
@@ -371,3 +382,73 @@ def train_dbfnet_fold(train_ds, val_ds, device, lr=1e-3, epochs=100, patience=15
             all_alphas.extend(alpha.cpu().numpy())
 
     return np.array(all_labels), np.array(all_probs), np.array(all_alphas)
+
+
+def train_dbfnet_fold_with_history(train_ds, val_ds, device, lr=1e-3, epochs=100, patience=15, batch_size=16):
+    """Igual que train_dbfnet_fold pero guarda historial de loss para graficar."""
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+
+    model = DualBranchFusionNet().to(device)
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+
+    best_val_loss = float("inf")
+    patience_counter = 0
+    best_state = None
+    history = {"train_loss": [], "val_loss": []}
+
+    for epoch in range(1, epochs + 1):
+        model.train()
+        t_loss, t_total = 0, 0
+        for z_t, z_s, y in train_loader:
+            z_t, z_s, y = z_t.to(device), z_s.to(device), y.to(device)
+            optimizer.zero_grad()
+            logits, _ = model(z_t, z_s)
+            loss = criterion(logits, y)
+            loss.backward()
+            optimizer.step()
+            t_loss += loss.item() * len(y)
+            t_total += len(y)
+
+        scheduler.step()
+
+        model.eval()
+        v_loss, v_total = 0, 0
+        with torch.no_grad():
+            for z_t, z_s, y in val_loader:
+                z_t, z_s, y = z_t.to(device), z_s.to(device), y.to(device)
+                logits, _ = model(z_t, z_s)
+                loss = criterion(logits, y)
+                v_loss += loss.item() * len(y)
+                v_total += len(y)
+
+        train_loss = t_loss / t_total
+        val_loss = v_loss / v_total
+        history["train_loss"].append(train_loss)
+        history["val_loss"].append(val_loss)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                break
+
+    model.load_state_dict(best_state)
+
+    model.eval()
+    all_probs, all_labels, all_alphas = [], [], []
+    with torch.no_grad():
+        for z_t, z_s, y in val_loader:
+            z_t, z_s = z_t.to(device), z_s.to(device)
+            logits, alpha = model(z_t, z_s)
+            probs = torch.sigmoid(logits).cpu().numpy()
+            all_probs.extend(probs)
+            all_labels.extend(y.numpy())
+            all_alphas.extend(alpha.cpu().numpy())
+
+    return np.array(all_labels), np.array(all_probs), np.array(all_alphas), history

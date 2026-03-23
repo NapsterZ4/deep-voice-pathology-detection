@@ -42,12 +42,6 @@ def build_windowed_dataset(indices, labels, waveforms, window_len, hop_len):
 
 
 class WindowedDataset(Dataset):
-    """
-    Dataset de ventanas de audio para PyTorch.
-    Cada muestra es una ventana de longitud fija con su etiqueta.
-    Opcionalmente almacena el ID del sujeto para evaluación posterior.
-    """
-
     def __init__(self, X, y, subject_ids=None):
         self.X = torch.tensor(X, dtype=torch.float32).unsqueeze(1)  # (N, 1, W)
         self.y = torch.tensor(y, dtype=torch.float32)
@@ -61,7 +55,6 @@ class WindowedDataset(Dataset):
 
 
 class DualBranchDataset(Dataset):
-    """Dataset que entrega pares (temporal, espectral, label)."""
 
     def __init__(self, emb_temporal, emb_spectral, labels, indices):
         self.emb_t = torch.tensor(emb_temporal[indices], dtype=torch.float32)

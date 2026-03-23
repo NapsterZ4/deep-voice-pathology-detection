@@ -1,7 +1,8 @@
 import torch
 import numpy as np
-from transformers import Wav2Vec2Model
+from .config import logger
 from .preprocessing import segment_waveform
+from transformers import HubertModel, WavLMModel, Wav2Vec2Model
 from sklearn.model_selection import StratifiedKFold
 from sklearn.decomposition import PCA
 from sklearn.metrics import roc_curve, auc
@@ -11,16 +12,13 @@ import itertools
 import polars as pl
 
 def extract_embeddings(df_metadata, waveforms, subject_indices, model_name, device="mps"):
-    print(f"  Cargando {model_name}...")
+    logger.info(f"Cargando {model_name}...")
 
     if "hubert" in model_name.lower():
-        from transformers import HubertModel
         model = HubertModel.from_pretrained(model_name)
     elif "wavlm" in model_name.lower():
-        from transformers import WavLMModel
         model = WavLMModel.from_pretrained(model_name)
     else:
-        from transformers import Wav2Vec2Model
         model = Wav2Vec2Model.from_pretrained(model_name)
 
     model = model.to(device)
@@ -53,20 +51,7 @@ def extract_windowed_embeddings(
         hop_len,
         device="mps"
 ):
-    """
-    Extrae embeddings de Wav2Vec2/HuBERT por VENTANA (no por señal completa).
-
-    Pipeline por cada sujeto:
-        1. Segmentar la señal en ventanas de longitud fija
-        2. Cada ventana → modelo congelado → mean pooling → embedding (D,)
-        3. Asociar cada embedding con su etiqueta y sujeto
-
-    Returns:
-        embeddings: np.array (N_ventanas, D)
-        labels:     np.array (N_ventanas,)
-        subjects:   np.array (N_ventanas,) — ID del sujeto original
-    """
-    print(f"  Cargando {model_name}...")
+    logger.info(f"Cargando {model_name}...")
     model = Wav2Vec2Model.from_pretrained(model_name)
     model = model.to(device)
     model.eval()
@@ -96,8 +81,8 @@ def extract_windowed_embeddings(
                 lab_list.append(labels[idx])
                 subj_list.append(idx)
 
-    print(f"  Sujetos procesados: {len(subject_indices) - skipped}/{len(subject_indices)}")
-    print(f"  Ventanas extraídas: {len(emb_list)}")
+    logger.info(f"Sujetos procesados: {len(subject_indices) - skipped}/{len(subject_indices)}")
+    logger.info(f"Ventanas extraídas: {len(emb_list)}")
 
     return np.array(emb_list), np.array(lab_list), np.array(subj_list)
 
@@ -119,10 +104,6 @@ def run_embedding_svm_search(
     Extrae embeddings una sola vez por modelo, luego busca la mejor
     combinación (PCA, C, kernel) evaluando a nivel de sujeto.
 
-    Returns
-    -------
-    dict
-        Resultados por modelo con métricas medias, std y detalle por fold.
     """
     all_labels = df["label"].to_numpy()
     all_indices = np.arange(len(waveforms_processed))
@@ -131,14 +112,14 @@ def run_embedding_svm_search(
     results = {}
 
     for emb_name, hf_model_name in embedding_models.items():
-        print(f"\n{'='*70}")
-        print(f"  {emb_name} → Embeddings por ventana + PCA + SVM")
-        print(f"{'='*70}")
+        logger.info(f"\n{'='*70}")
+        logger.info(f"  {emb_name} → Embeddings por ventana + PCA + SVM")
+        logger.info(f"{'='*70}")
 
         all_emb, all_emb_labels, all_emb_subjects = extract_windowed_embeddings(
             waveforms_processed, all_indices, all_labels, hf_model_name, window_len, hop_len
         )
-        print(f"  Shape total: {all_emb.shape}")
+        logger.info(f"Shape total: {all_emb.shape}")
 
         best_combo_auc = -1
         best_combo = None
@@ -219,7 +200,11 @@ def run_embedding_svm_search(
             mean_auc = np.mean([m["auc"] for m in fold_metrics])
 
             if mean_auc > 0.75:
-                print(f"  PCA={n_comp_actual:<3} C={C:<5} kernel={kernel:<7} → AUC={mean_auc:.3f}")
+                logger.info(f"  "
+                            f"PCA={n_comp_actual:<3} "
+                            f"C={C:<5} "
+                            f"kernel={kernel:<7} → "
+                            f"AUC={mean_auc:.3f}")
 
             if mean_auc > best_combo_auc:
                 best_combo_auc = mean_auc
@@ -227,7 +212,7 @@ def run_embedding_svm_search(
                 best_combo_folds = fold_metrics
 
         if best_combo_folds is None:
-            print(f"  ⚠️ No se pudo evaluar {emb_name}")
+            logger.warning(f"  No se pudo evaluar {emb_name}")
             continue
 
         aucs  = [m["auc"] for m in best_combo_folds]
@@ -254,32 +239,11 @@ def extract_fusion_embeddings(
     model_names: list[str],
     device: str = "mps",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Extrae embeddings de múltiples modelos preentrenados y los concatena.
-
-    Parameters
-    ----------
-    df : pl.DataFrame
-        Metadata con columna "label".
-    waveforms_processed : list[np.ndarray]
-        Señales preprocesadas.
-    model_names : list[str]
-        Nombres HuggingFace de los modelos a fusionar.
-    device : str
-        Dispositivo de cómputo.
-
-    Returns
-    -------
-    emb_fusion : np.ndarray
-        Embeddings concatenados (n_sujetos, sum(dims)).
-    labels : np.ndarray
-        Etiquetas por sujeto.
-    """
     all_indices = np.arange(len(waveforms_processed))
     all_embeddings = []
     labels = None
 
-    print("Extrayendo embeddings para fusión...")
+    logger.info("Extrayendo embeddings para fusión...")
 
     for model_name in model_names:
         emb, lab = extract_embeddings(df, waveforms_processed, all_indices, model_name, device)
@@ -288,7 +252,7 @@ def extract_fusion_embeddings(
         labels = lab
 
     emb_fusion = np.concatenate(all_embeddings, axis=1)
-    print(f"  Fusión: {emb_fusion.shape}")
+    logger.info(f"  Fusión: {emb_fusion.shape}")
 
     return emb_fusion, labels
 
@@ -327,9 +291,9 @@ def run_fusion_svm_search(
     fusion_results = {}
 
     for fusion_name, emb_data in fusion_configs.items():
-        print(f"\n{'='*60}")
-        print(f"  {fusion_name} ({emb_data.shape[1]}-dim) → PCA + SVM")
-        print(f"{'='*60}")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"  {fusion_name} ({emb_data.shape[1]}-dim) → PCA + SVM")
+        logger.info(f"{'='*60}")
 
         best_combo_auc = -1
         best_combo = None
@@ -376,7 +340,12 @@ def run_fusion_svm_search(
             mean_auc = np.mean([m["auc"] for m in fold_metrics])
 
             if mean_auc > 0.75:
-                print(f"  PCA={n_actual:<3} C={C:<5} kernel={kernel:<7} → AUC={mean_auc:.3f}")
+                logger.info(f"  "
+                      f"PCA={n_actual:<3} "
+                      f"C={C:<5} "
+                      f"kernel={kernel:<7} → "
+                      f"AUC={mean_auc:.3f}"
+                      )
 
             if mean_auc > best_combo_auc:
                 best_combo_auc = mean_auc
@@ -384,7 +353,7 @@ def run_fusion_svm_search(
                 best_combo_folds = fold_metrics
 
         if best_combo_folds is None:
-            print(f"  ⚠️ No se pudo evaluar {fusion_name}")
+            logger.warning(f" No se pudo evaluar {fusion_name}")
             continue
 
         aucs  = [m["auc"] for m in best_combo_folds]
@@ -403,3 +372,38 @@ def run_fusion_svm_search(
         }
 
     return fusion_results
+
+
+def extract_multilayer_embeddings(
+    waveforms, model_name, layers, device="mps"
+):
+    logger.info(f"  Cargando {model_name}...")
+    if "hubert" in model_name.lower():
+        model = HubertModel.from_pretrained(model_name, output_hidden_states=True)
+    else:
+        model = Wav2Vec2Model.from_pretrained(model_name, output_hidden_states=True)
+
+    model = model.to(device)
+    model.eval()
+    for p in model.parameters():
+        p.requires_grad = False
+
+    layer_embeddings = {l: [] for l in layers}
+
+    with torch.no_grad():
+        for i, wf in enumerate(waveforms):
+            x = torch.tensor(wf, dtype=torch.float32).unsqueeze(0).to(device)
+            outputs = model(x)
+            hidden_states = outputs.hidden_states  # tupla de (1, T, 768) por capa
+
+            for l in layers:
+                # hidden_states[0] es el output del feature encoder (CNN)
+                # hidden_states[1] es la capa 1 del Transformer, etc.
+                h = hidden_states[l + 1]  # +1 porque [0] es el CNN encoder
+                pooled = h.mean(dim=1).squeeze(0).cpu().numpy()
+                layer_embeddings[l].append(pooled)
+
+            if (i + 1) % 25 == 0:
+                print(f"  {i+1}/{len(waveforms)}")
+
+    return {l: np.array(embs) for l, embs in layer_embeddings.items()}

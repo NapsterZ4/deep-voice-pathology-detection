@@ -7,21 +7,6 @@ from sklearn.metrics import (
 )
 
 def evaluate_subject_level(model, dataset, device):
-    """
-    Evaluación a nivel de sujeto.
-
-    Promedia las probabilidades de todas las ventanas de cada
-    paciente antes de tomar la decisión de clasificación.
-
-    Args:
-        model:   modelo entrenado
-        dataset: AugmentedWindowedDataset con subject_ids
-        device:  'mps', 'cuda' o 'cpu'
-
-    Returns:
-        y_true_subj: np.array con label real por sujeto
-        y_prob_subj: np.array con probabilidad promedio por sujeto
-    """
     model.eval()
     loader = DataLoader(dataset, batch_size=4, shuffle=False)
 

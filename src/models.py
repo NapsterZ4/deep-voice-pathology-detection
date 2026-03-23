@@ -991,14 +991,6 @@ class WavLMClassifier(nn.Module):
 
 
 class ResNet18Classifier(nn.Module):
-    """
-    ResNet18 con fine-tuning de layer4 para clasificación binaria.
-
-    Estrategia:
-      - Capas 1-3: congeladas (features genéricos de ImageNet)
-      - Layer4: descongelada (se adapta a espectrogramas de voz)
-      - FC: nueva capa lineal (512 → 1) para clasificación binaria
-    """
     def __init__(self):
         super().__init__()
         resnet = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
@@ -1025,7 +1017,6 @@ class DenseNet121SpectralExtractor:
         self.device = device
         densenet = models.densenet121(weights=models.DenseNet121_Weights.IMAGENET1K_V1)
 
-        # Quitar clasificador → output (batch, 1024, 7, 7) → avgpool → (batch, 1024)
         self.backbone = nn.Sequential(
             densenet.features,
             nn.AdaptiveAvgPool2d((1, 1)),
@@ -1087,7 +1078,6 @@ class DualBranchFusionNet(nn.Module):
             nn.Dropout(dropout),
         )
 
-        # Gate: aprende α ∈ [0,1] por muestra
         # Input: concatenación de ambas proyecciones (2 * dim_proj)
         self.gate = nn.Sequential(
             nn.Linear(dim_proj * 2, dim_proj),
@@ -1105,17 +1095,6 @@ class DualBranchFusionNet(nn.Module):
         )
 
     def forward(self, z_temporal, z_spectral):
-        """
-        Parameters
-        ----------
-        z_temporal : (batch, 768) — embeddings capa 0 Wav2Vec2
-        z_spectral : (batch, 512) — features ResNet18
-
-        Returns
-        -------
-        logits : (batch,)
-        alpha  : (batch, 1) — peso aprendido del dominio temporal
-        """
         h_t = self.proj_temporal(z_temporal)    # (batch, 128)
         h_s = self.proj_spectral(z_spectral)    # (batch, 128)
 
