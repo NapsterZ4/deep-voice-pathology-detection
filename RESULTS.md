@@ -80,31 +80,6 @@
 
 ## Conclusiones del experimento de Data Augmentation
 
-#### Resumen de resultados (Test Holdout)
-
-| Métrica | Baseline | Gaussian Noise (SNR 25 dB) | VTLP (α ∈ [0.95, 1.05]) |
-|---------|----------|---------------------------|-------------------------|
-| AUC | 0.880 | 0.810 | 0.800 |
-| Accuracy | 0.750 | 0.700 | 0.600 |
-| Sensibilidad | 0.800 | 0.800 | 0.600 |
-| Especificidad | 1.000 | 1.000 | 1.000 |
-
-#### H1 — Confirmada
-El modelo baseline presenta buen rendimiento en CV interna pero muestra signos de sobreajuste al evaluarse en test independiente por sujeto, consistente con la escasez de datos.
-
-#### H2 — No confirmada
-Ninguna de las dos técnicas de data augmentation mejora el rendimiento del baseline en test independiente:
-
-- **Ruido gaussiano (SNR 25 dB):** Los embeddings wav2vec2, preentrenados con miles de horas de audio, ya son robustos a variaciones de ruido ambiental. Añadir ruido al waveform genera embeddings casi idénticos a los originales → no aporta diversidad en el espacio de representación donde opera el clasificador.
-
-- **VTLP (α ∈ [0.95, 1.05]):** Aunque genera embeddings espectralmente distintos (altera formantes), el rango conservador de perturbación necesario para preservar la coherencia fisiológica de la DDK limita la diversidad introducida. Un rango más agresivo arriesgaría deformar las propiedades motor-articulatorias que constituyen el biomarcador clínico.
-
-#### Interpretación clínica
-
-Este resultado es consistente con la advertencia de que **no todo augmentation útil en audio general es útil en DDK-PD** (H2 condicionada). En diadococinesia, el espacio de variación fisiológicamente plausible es estrecho: la tasa de repetición silábica, la regularidad temporal y las transiciones articulatorias son precisamente los rasgos que definen la tarea y diferencian PD de controles. Cualquier perturbación debe preservarlos, lo cual limita inherentemente la diversidad que puede aportar el augmentation.
-
-Con embeddings congelados de modelos preentrenados, la representación ya captura variabilidad acústica de bajo nivel. El cuello de botella no es la cantidad de datos en el espacio de entrada, sino la cantidad de **sujetos independientes** en el espacio clínico.
-
 **Resultados usando esta configuración con un sujeto de Augment con VTLP + ruido gaussiano:**
 ![](images/img_2.png)
 
@@ -117,7 +92,7 @@ Con embeddings congelados de modelos preentrenados, la representación ya captur
 **Resultados usando esta configuración con un sujetos de Augment con solamente Manifold Mixup:**
 ![](images/img_5.png)
 
-En la tendencia observamos, que agregar mas sujetos de augmentation, baja el rendimiento del modelo.
+En la tendencia observamos, que agregar mas sujetos de augmentation, baja el rendimiento del modelo, pero la técnica Manifold Mixup, presentó casi lo mismo que utilizarlo sin augmentation. Hicimos mas experimentos tratando de encontrar una optimización de hiperparámetros usando esta técnica y a continuación los resultados:
 
 ## Optimización de hipeparámetros con Manifold MixUp:
 Mejor trial #72
@@ -134,7 +109,6 @@ Mejor trial #72
   - mixup_alpha: 0.8
 
 Observamos una mejoría con MixUp usando optimización de hiperparámetros.
-![img.png](img_6.png)
 
 ### Conclusiones del experimento de Data Augmentation
 #### Técnicas evaluadas
@@ -151,34 +125,38 @@ Se probaron 4 estrategias de data augmentation, todas con validación subject-in
 
 #### Resultados con test holdout (TEST_SIZE=0.20, ensemble 5 seeds)
 
-| Método | AUC | Accuracy | Sensibilidad | Especificidad |
-|--------|-----|----------|-------------|---------------|
-| Baseline | 0.850 | 0.750 | 0.800 | 1.000 |
-| Gaussian Noise Opt | 0.750 | 0.550 | 0.700 | 1.000 |
-| Feature Noise Injection | 0.860 | 0.700 | 0.800 | 0.800 |
-| **Manifold Mixup Opt** | **0.850** | **0.700** | **0.800** | **1.000** |
+| Método                    | AUC       | Accuracy  | Sensibilidad | Especificidad |
+|---------------------------|-----------|-----------|--------------|---------------|
+| Baseline (modelo sin Aug) | 0.850     | 0.750     | 0.800        | 1.000         |
+| Gaussian Noise Opt        | 0.750     | 0.550     | 0.700        | 1.000         |
+| Feature Noise Injection   | 0.860     | 0.700     | 0.800        | 0.800         |
+| **Manifold Mixup Opt**    | **0.850** | **0.700** | **0.800**    | **1.000**     |
 
 #### Estabilidad con holdout (media ± std por seed)
 
-| Métrica | Baseline | Manifold Mixup |
-|---------|----------|----------------|
-| AUC | 0.858±0.016 | 0.850±0.030 |
-| Accuracy | 0.720±0.040 | 0.730±0.024 |
-| Sensibilidad | 0.780±0.040 | **0.800±0.000** |
-| Especificidad | 0.740±0.080 | **0.840±0.049** |
+| Métrica       | Baseline (modelo sin Aug) | Manifold Mixup  |
+|---------------|---------------------------|-----------------|
+| AUC           | 0.858±0.016               | 0.850±0.030     |
+| Accuracy      | 0.720±0.040               | 0.730±0.024     |
+| Sensibilidad  | 0.780±0.040               | **0.800±0.000** |
+| Especificidad | 0.740±0.080               | **0.840±0.049** |
 
 #### CV de Pearson con holdout (5 seeds)
 
-| Métrica | Baseline | Manifold Mixup |
-|---------|----------|----------------|
-| AUC | 1.86% | 3.57% |
-| Accuracy | 5.56% | **3.36%** |
-| Sensibilidad | 5.13% | **0.00%** |
-| Especificidad | 10.81% | **5.83%** |
+| Métrica       | Baseline (modelo sin Aug) | Manifold Mixup |
+|---------------|---------------------------|----------------|
+| AUC           | 1.86%                     | 3.57%          |
+| Accuracy      | 5.56%                     | **3.36%**      |
+| Sensibilidad  | 5.13%                     | **0.00%**      |
+| Especificidad | 10.81%                    | **5.83%**      |
 
 #### Resultados CV puro (TEST_SIZE=0, 100% datos en CV)
 
-| Método | AUC | Accuracy | Sensibilidad | Especificidad |
-|--------|-----|----------|-------------|---------------|
-| Baseline (NB15, sin aug) | 0.902±0.085 | 0.890±0.058 | 0.840±0.120 | 0.940±0.049 |
+| Método                | AUC             | Accuracy        | Sensibilidad    | Especificidad   |
+|-----------------------|-----------------|-----------------|-----------------|-----------------|
+| Baseline (sin aug)    | 0.902±0.085     | 0.890±0.058     | 0.840±0.120     | 0.940±0.049     |
 | **Mixup Opt (α=1.0)** | **0.904±0.096** | **0.830±0.103** | **0.760±0.102** | **0.960±0.049** |
+
+Estas son las curvas de train loss vrs val loss por fold para este modelo, bastante similares a las anteriores.
+
+![img.png](images/img_7.png)
