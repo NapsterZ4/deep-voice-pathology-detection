@@ -452,3 +452,99 @@ def train_dbfnet_fold_with_history(train_ds, val_ds, device, lr=1e-3, epochs=100
             all_alphas.extend(alpha.cpu().numpy())
 
     return np.array(all_labels), np.array(all_probs), np.array(all_alphas), history
+
+def train_fold_regularized(train_ds, val_ds, device,
+                           lr=1e-3, weight_decay=1e-4, label_smoothing=0.0,
+                           dropout=0.3, dim_proj=128, dim_hidden=64,
+                           epochs=120, patience=20, batch_size=8,
+                           scheduler_factor=0.5, scheduler_patience=7):
+    """
+    Entrena un fold de DBFNet con regularizacion completa:
+    AdamW + label smoothing + ReduceLROnPlateau + early stopping.
+
+    Returns: y_true, y_prob, alphas, history
+    """
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    val_loader   = DataLoader(val_ds, batch_size=len(val_ds))
+
+    model = DualBranchFusionNet(
+        dim_proj=dim_proj, dim_hidden=dim_hidden, dropout=dropout
+    ).to(device)
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    criterion = nn.BCEWithLogitsLoss()
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=scheduler_factor,
+        patience=scheduler_patience
+    )
+
+    best_val_loss = float("inf")
+    epochs_no_improve = 0
+    best_state = None
+    history = {"train_loss": [], "val_loss": [], "lr": []}
+
+    for epoch in range(epochs):
+        model.train()
+        train_losses = []
+        for z_t, z_s, y in train_loader:
+            z_t, z_s, y = z_t.to(device), z_s.to(device), y.to(device)
+
+            if label_smoothing > 0:
+                y = y * (1 - label_smoothing) + label_smoothing / 2
+
+            logits, _ = model(z_t, z_s)
+            loss = criterion(logits, y)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            train_losses.append(loss.item())
+
+        model.eval()
+        with torch.no_grad():
+            z_t_v, z_s_v, y_v = next(iter(val_loader))
+            z_t_v, z_s_v, y_v = z_t_v.to(device), z_s_v.to(device), y_v.to(device)
+            logits_v, alphas_v = model(z_t_v, z_s_v)
+            val_loss = criterion(logits_v, y_v).item()
+
+        scheduler.step(val_loss)
+        current_lr = optimizer.param_groups[0]["lr"]
+
+        history["train_loss"].append(np.mean(train_losses))
+        history["val_loss"].append(val_loss)
+        history["lr"].append(current_lr)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            epochs_no_improve = 0
+            best_state = model.state_dict().copy()
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= patience:
+                break
+
+    model.load_state_dict(best_state)
+    model.eval()
+    with torch.no_grad():
+        z_t_v, z_s_v, y_v = next(iter(val_loader))
+        z_t_v, z_s_v, y_v = z_t_v.to(device), z_s_v.to(device), y_v.to(device)
+        logits_v, alphas_v = model(z_t_v, z_s_v)
+        y_prob = torch.sigmoid(logits_v).cpu().numpy()
+        y_true = y_v.cpu().numpy()
+        alphas = alphas_v.cpu().numpy()
+
+    return y_true, y_prob, alphas, history
+
+def manifold_mixup_intraclass(emb_t, emb_s, labels, alpha, rng):
+    aug_t, aug_s, aug_labels = [], [], []
+    for cls in [0, 1]:
+        cls_idx = np.where(labels == cls)[0]
+        if len(cls_idx) < 2:
+            continue
+        for i in cls_idx:
+            j = rng.choice(cls_idx[cls_idx != i])
+            lam = rng.beta(alpha, alpha)
+            aug_t.append(lam * emb_t[i] + (1 - lam) * emb_t[j])
+            aug_s.append(lam * emb_s[i] + (1 - lam) * emb_s[j])
+            aug_labels.append(cls)
+    return np.array(aug_t), np.array(aug_s), np.array(aug_labels)
