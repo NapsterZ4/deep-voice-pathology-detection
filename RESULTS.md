@@ -160,3 +160,48 @@ Se probaron 4 estrategias de data augmentation, todas con validación subject-in
 Estas son las curvas de train loss vrs val loss por fold para este modelo, bastante similares a las anteriores.
 
 ![img.png](images/img_7.png)
+
+##  Resultados con varias repeticiones
+
+### Repeated Stratified K-Fold + Bootstrap IC 95%
+
+Para obtener estimaciones estadísticamente mas robustas, se repitió el 5-fold CV 10 veces (50 evaluaciones totales) y se calcularon intervalos de confianza al 95% con bootstrap (1000 remuestreos).
+
+| Métrica       | Baseline             | Manifold Mixup       |
+|---------------|----------------------|----------------------|
+| AUC           | 0.893 [0.873, 0.914] | 0.892 [0.871, 0.913] |
+| Accuracy      | 0.823 [0.797, 0.849] | 0.812 [0.787, 0.838] |
+| Sensibilidad  | 0.810 [0.770, 0.848] | 0.810 [0.770, 0.853] |
+| Especificidad | 0.932 [0.905, 0.958] | 0.927 [0.895, 0.955] |
+
+Los intervalos de confianza se solapan completamente en todas las métricas. Con 50 evaluaciones, no hay diferencia estadísticamente significativa entre Baseline y Manifold Mixup. La mejora en estabilidad observada con 5 seeds era artefacto del muestreo pequeño.
+
+![](images/img_8.png)
+
+### ¿Aumentar más datos todavía, trae una mejora?
+
+Se evaluó el efecto de generar 1, 2, 3 y 4 muestras Mixup por sujeto con el mismo protocolo (Repeated 5-Fold CV, 10 repeticiones, Bootstrap IC 95%).
+
+| n_aug        | AUC                  | Accuracy             |
+|--------------|----------------------|----------------------|
+| 0 (baseline) | 0.891 [0.867, 0.915] | 0.818 [0.791, 0.844] |
+| 1 mixup      | 0.897 [0.876, 0.919] | 0.826 [0.800, 0.853] |
+| 2 mixup      | 0.887 [0.866, 0.909] | 0.807 [0.781, 0.834] |
+| 3 mixup      | 0.880 [0.855, 0.905] | 0.810 [0.786, 0.838] |
+| 4 mixup      | 0.894 [0.872, 0.917] | 0.812 [0.787, 0.838] |
+
+Todos los intervalos se solapan. Aumentar más datos no mejora ni empeora significativamente. El punto óptimo numérico es 1 muestra mixup por sujeto, pero la diferencia no es estadísticamente significativa respecto al baseline.
+
+![](images/img_9.png)
+
+### Comparación de algunso encoders preentrenados que también funcionaron bien para otros casos de estudios en patologías de la voz
+
+Se evaluaron tres encoders (wav2vec2, HuBERT, WavLM) con Manifold Mixup bajo el mismo protocolo.
+
+| Encoder | AUC | Accuracy |
+|---------|-----|----------|
+| wav2vec2 | 0.888 [0.862, 0.913] | 0.818 [0.794, 0.843] |
+| HuBERT | 0.886 [0.864, 0.907] | 0.795 [0.769, 0.821] |
+| WavLM | 0.895 [0.872, 0.915] | 0.821 [0.792, 0.850] |
+
+Los tres producen resultados estadísticamente casi iguales (intervalos solapados)
