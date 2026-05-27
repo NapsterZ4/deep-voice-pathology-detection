@@ -321,3 +321,38 @@ La arquitectura dual-branch (wav2vec2-L0 + Mel-stats) con Manifold Mixup intra-c
 3. **Patrón de varianza estructural**: dos folds consistentemente difíciles (Fold 3 y Fold 4 con AUC ≤ 0.80), asociados a sujetos en zona de frontera diagnóstica. Característica del corpus, no del método.
 
 La consistencia entre dos corpus independientes (distinto idioma, distinto protocolo de grabación, distinto equipo clínico) sugiere que el método captura biomarcadores fonatorio-articulatorios robustos a la variabilidad lingüística y de adquisición, en lugar de artefactos específicos del corpus de entrenamiento. La brecha de ~3pp con el SOTA reportado en Neurovoz (89% accuracy, Mendes-Laureano et al., 2024) es atribuible a que el SOTA combina múltiples tareas (vocales + DDK + listen-and-repeat) mientras este experimento usa únicamente PATAKA — protocolo deliberadamente conservador para aislar la replicabilidad del método.
+
+# Validación Cross-Corpus de DBFNet
+
+Tres experimentos para cuantificar la transferencia de DBFNet entre corpus sin re-entrenamiento ni adaptación. Hiperparámetros óptimos del corpus de train (sin tocar el corpus de test), `StandardScaler` ajustado solo en train, ensemble de 5 seeds.
+
+### Tabla principal
+
+| Experimento                          | AUC       | Accuracy  | Sensibilidad | Especificidad |
+|--------------------------------------|-----------|-----------|--------------|---------------|
+| **Intra-corpus original** (Rep. CV)  | 0.892     | 0.812     | 0.810        | 0.927         |
+| **Intra-corpus Neurovoz** (Rep. CV)  | 0.935     | 0.861     | 0.858        | 0.920         |
+| Exp 1 — Train Orig → Test Neuro      | 0.602     | 0.586     | 0.184        | 0.980         |
+| Exp 2 — Train Neuro → Test Orig      | 0.652     | 0.680     | 0.680        | 0.680         |
+| **Exp 3 — Train Pool → Test Holdout**| **0.887** | **0.825** | **0.650**    | **1.000**     |
+
+### Caída (Δ) respecto al intra-corpus del corpus de TEST
+
+| Experimento                  | ΔAUC   | ΔAcc   | ΔSens  | ΔSpec  |
+|------------------------------|--------|--------|--------|--------|
+| Exp 1 (Orig → Neuro)         | −0.333 | −0.275 | −0.674 | +0.060 |
+| Exp 2 (Neuro → Orig)         | −0.240 | −0.132 | −0.130 | −0.247 |
+| Exp 3 (Pool, vs media intra) | −0.026 | −0.012 | −0.184 | +0.077 |
+
+### Desglose del test del Exp 3 por corpus
+
+| Subconjunto del holdout    | AUC   | Acc   | Sens  | Spec  |
+|----------------------------|-------|-------|-------|-------|
+| Solo sujetos corpus Orig.  | 0.860 | 0.800 | 0.600 | 1.000 |
+| Solo sujetos de Neurovoz   | 0.920 | 0.850 | 0.700 | 1.000 |
+
+### Interpretación
+
+- **Exp 1 y 2 muestran domain shift severo** (Δ AUC de −0.24 a −0.33), consistente con la literatura cross-corpus de speech-PD (Moro-Velázquez et al. 2021, Vásquez-Correa et al. 2021 reportan caídas típicas de 15-25pp). El umbral de Youden anormalmente alto en train (~0.88-0.90) refleja que el modelo aprende a discriminar dentro de la distribución de embeddings de un solo corpus.
+- **Exp 3 prácticamente recupera el rendimiento intra-corpus** (Δ AUC = −0.026 vs media intra). El desglose por corpus dentro del holdout muestra generalización equilibrada (AUC 0.86 en Original, 0.92 en Neurovoz).
+- **Conclusión metodológica**: el biomarcador fonatorio-articulatorio que detecta DBFNet es universal pero requiere exposición a la variabilidad de adquisición durante el entrenamiento para no acoplarse a artefactos específicos del corpus.
