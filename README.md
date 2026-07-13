@@ -33,6 +33,8 @@ Detección de la enfermedad de Parkinson (EP) a partir de la tarea diadococinét
 | `07_cross_corpus.ipynb` | Generalización entre corpus: transferencia directa en ambos sentidos y entrenamiento combinado. Guarda `cross_corpus_metrics.json`. |
 | `08_validacion_anidada.ipynb` | Validación cruzada anidada para acotar el optimismo del protocolo (no anidado vs anidado). |
 | `09_resultados_unificado.ipynb` | **Notebook maestro.** Recalcula de forma coherente ambos corpus (GDBFNet + ICMM, umbral de Youden), congela los resultados en `results/` y genera todas las figuras finales. Fuente única de cifras y figuras. |
+| `10_lineas_base_figuras_pc_gita.ipynb` | Entrenamiento de las 11 líneas base sobre PC-GITA y figuras del capítulo de resultados. Produce `baseline_results.json`. |
+| `11_lineas_base_neurovoz.ipynb` | Entrenamiento de las 11 líneas base sobre NeuroVoz (mismo esquema 5-fold que PC-GITA) y figura de sensibilidad/especificidad. Produce `baseline_results_neurovoz.json` y `images/res_baselines_sens_spec_nv.png`. |
 
 ### Notebooks obsoletos
 
@@ -40,7 +42,6 @@ Detección de la enfermedad de Parkinson (EP) a partir de la tarea diadococinét
 |---|---|
 | `DEPRECATED_experiments_neurovoz_dual_branch_1.ipynb` | Versión previa de NeuroVoz (concatenación sin compuerta). Superada por `06`. |
 | `DEPRECATED_neurovoz_dual_branch_resnet18.ipynb` | Versión previa de NeuroVoz. Superada por `06`. |
-| `DEPRECATED_figuras_pc_guita.ipynb` | Generación de figuras con cifras escritas a mano y fondo oscuro. Superada por `09`. No usar. |
 
 ## Módulos de `src/`
 
@@ -67,7 +68,8 @@ Detección de la enfermedad de Parkinson (EP) a partir de la tarea diadococinét
 | `resultados_gdbfnet_{corpus}.json` | Métricas robustas legibles (con y sin ICMM, con IC 95 %), α, umbral e hiperparámetros. |
 | `resultados_gdbfnet_todos.json` | Resumen conjunto de ambos corpus. |
 | `modelo_gdbfnet_{corpus}.pt` | Modelo final entrenado sobre el 100 % del corpus (pesos + configuración). |
-| `baseline_results.json` | Métricas de las líneas base. |
+| `baseline_results.json` | Métricas de las líneas base (PC-GITA). |
+| `baseline_results_neurovoz.json` | Métricas de las líneas base (NeuroVoz). |
 | `cross_corpus_metrics.json` | Métricas de los experimentos de generalización entre corpus. |
 
 ## Uso
