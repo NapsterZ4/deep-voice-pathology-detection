@@ -1,0 +1,64 @@
+{
+  "corpus": "pcgita",
+  "arquitectura": "GDBFNet + ICMM",
+  "n_sujetos": 100,
+  "hiperparametros": {
+    "lr": 0.001074206423633161,
+    "weight_decay": 0.0003920776541325165,
+    "dropout": 0.30000000000000004,
+    "label_smoothing": 0.125,
+    "batch_size": 16,
+    "dim_proj": 256,
+    "dim_hidden": 32,
+    "epochs": 120,
+    "patience": 20
+  },
+  "mixup_alpha": 0.7000000000000001,
+  "alpha_compuerta": 0.7566336005926132,
+  "umbral_youden": 0.534246563911438,
+  "oof_auc": 0.9212,
+  "metricas_sin_ICMM": {
+    "auc": [
+      0.9002,
+      0.88,
+      0.9172
+    ],
+    "acc": [
+      0.879,
+      0.862,
+      0.894
+    ],
+    "sens": [
+      0.822,
+      0.782,
+      0.8601
+    ],
+    "spec": [
+      0.936,
+      0.914,
+      0.956
+    ]
+  },
+  "metricas_con_ICMM": {
+    "auc": [
+      0.898,
+      0.8742,
+      0.9204
+    ],
+    "acc": [
+      0.882,
+      0.861,
+      0.902
+    ],
+    "sens": [
+      0.822,
+      0.778,
+      0.862
+    ],
+    "spec": [
+      0.942,
+      0.9199,
+      0.962
+    ]
+  }
+}
