@@ -1,0 +1,130 @@
+{
+  "pcgita": {
+    "corpus": "pcgita",
+    "arquitectura": "GDBFNet + ICMM",
+    "n_sujetos": 100,
+    "hiperparametros": {
+      "lr": 0.0023771833132725496,
+      "weight_decay": 0.0017982094450136338,
+      "dropout": 0.30000000000000004,
+      "label_smoothing": 0.125,
+      "batch_size": 16,
+      "dim_proj": 256,
+      "dim_hidden": 32,
+      "epochs": 120,
+      "patience": 20
+    },
+    "mixup_alpha": 0.30000000000000004,
+    "alpha_compuerta": 0.7378943860530853,
+    "umbral_youden": 0.5465332269668579,
+    "oof_auc": 0.8836,
+    "metricas_sin_ICMM": {
+      "auc": [
+        0.8976,
+        0.8754,
+        0.9166
+      ],
+      "acc": [
+        0.876,
+        0.856,
+        0.895
+      ],
+      "sens": [
+        0.826,
+        0.788,
+        0.862
+      ],
+      "spec": [
+        0.926,
+        0.896,
+        0.952
+      ]
+    },
+    "metricas_con_ICMM": {
+      "auc": [
+        0.8996,
+        0.8808,
+        0.9178
+      ],
+      "acc": [
+        0.885,
+        0.868,
+        0.901
+      ],
+      "sens": [
+        0.852,
+        0.818,
+        0.882
+      ],
+      "spec": [
+        0.918,
+        0.884,
+        0.946
+      ]
+    }
+  },
+  "neurovoz": {
+    "corpus": "neurovoz",
+    "arquitectura": "GDBFNet + ICMM",
+    "n_sujetos": 99,
+    "hiperparametros": {
+      "lr": 0.0037977679442478553,
+      "weight_decay": 0.002656813924114493,
+      "dropout": 0.35,
+      "label_smoothing": 0.15,
+      "batch_size": 32,
+      "dim_proj": 256,
+      "dim_hidden": 32,
+      "epochs": 120,
+      "patience": 20
+    },
+    "mixup_alpha": 0.5,
+    "alpha_compuerta": 0.27426120643503965,
+    "umbral_youden": 0.532016932964325,
+    "oof_auc": 0.9093877551020408,
+    "metricas_sin_ICMM": {
+      "auc": [
+        0.8936,
+        0.8726,
+        0.9126
+      ],
+      "acc": [
+        0.8706,
+        0.851,
+        0.8906
+      ],
+      "sens": [
+        0.8376,
+        0.8033,
+        0.8725
+      ],
+      "spec": [
+        0.904,
+        0.87,
+        0.93
+      ]
+    },
+    "metricas_con_ICMM": {
+      "auc": [
+        0.8926,
+        0.8694,
+        0.9132
+      ],
+      "acc": [
+        0.8758,
+        0.8553,
+        0.8934
+      ],
+      "sens": [
+        0.8569,
+        0.8186,
+        0.8911
+      ],
+      "spec": [
+        0.896,
+        0.858,
+        0.926
+      ]
+    }
+  }
+}

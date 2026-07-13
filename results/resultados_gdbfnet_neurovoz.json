@@ -1,0 +1,64 @@
+{
+  "corpus": "neurovoz",
+  "arquitectura": "GDBFNet + ICMM",
+  "n_sujetos": 99,
+  "hiperparametros": {
+    "lr": 0.0037977679442478553,
+    "weight_decay": 0.002656813924114493,
+    "dropout": 0.35,
+    "label_smoothing": 0.15,
+    "batch_size": 32,
+    "dim_proj": 256,
+    "dim_hidden": 32,
+    "epochs": 120,
+    "patience": 20
+  },
+  "mixup_alpha": 0.5,
+  "alpha_compuerta": 0.27426120643503965,
+  "umbral_youden": 0.532016932964325,
+  "oof_auc": 0.9093877551020408,
+  "metricas_sin_ICMM": {
+    "auc": [
+      0.8936,
+      0.8726,
+      0.9126
+    ],
+    "acc": [
+      0.8706,
+      0.851,
+      0.8906
+    ],
+    "sens": [
+      0.8376,
+      0.8033,
+      0.8725
+    ],
+    "spec": [
+      0.904,
+      0.87,
+      0.93
+    ]
+  },
+  "metricas_con_ICMM": {
+    "auc": [
+      0.8926,
+      0.8694,
+      0.9132
+    ],
+    "acc": [
+      0.8758,
+      0.8553,
+      0.8934
+    ],
+    "sens": [
+      0.8569,
+      0.8186,
+      0.8911
+    ],
+    "spec": [
+      0.896,
+      0.858,
+      0.926
+    ]
+  }
+}

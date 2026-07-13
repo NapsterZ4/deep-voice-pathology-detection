@@ -2,6 +2,7 @@ import polars as pl
 import numpy as np
 import matplotlib.pyplot as plt
 from .evaluation import confusion_matrix, roc_curve
+from pathlib import Path
 
 
 def plot_before_after_preprocessing(
@@ -10,65 +11,157 @@ def plot_before_after_preprocessing(
     waveforms_orig: list[np.ndarray],
     waveforms_proc: list[np.ndarray],
     target_sr: int = 16_000,
-) -> None:
+):
     wf_orig = waveforms_orig[idx]
     wf_proc = waveforms_proc[idx]
+
     t_orig = np.arange(len(wf_orig)) / target_sr
     t_proc = np.arange(len(wf_proc)) / target_sr
 
     label_name = df["label_name"][idx]
     filename = df["filename"][idx]
+
     color = "#2196F3" if label_name == "HD" else "#F44336"
 
-    fig, axes = plt.subplots(2, 1, figsize=(14, 5))
+    # Crear figura
+    fig, axes = plt.subplots(
+        2,
+        1,
+        figsize=(14, 5),
+        facecolor="white"
+    )
+
+    # Configuración común de los ejes
+    for ax in axes:
+        ax.set_facecolor("white")
+        ax.tick_params(axis="both", colors="black")
+        ax.xaxis.label.set_color("black")
+        ax.yaxis.label.set_color("black")
+        ax.title.set_color("black")
+
+        for spine in ax.spines.values():
+            spine.set_color("black")
 
     # --------------------------------------------------------------------------
-    # SENAL ORIGINAL
+    # SEÑAL ORIGINAL
     # --------------------------------------------------------------------------
-    axes[0].plot(t_orig, wf_orig, color=color, linewidth=0.3, alpha=0.7)
-    axes[0].set_title(f"ORIGINAL — {filename}  |  "
-                      f"Duración: {len(wf_orig)/target_sr:.3f}s  |  "
-                      f"Pico: {np.max(np.abs(wf_orig)):.4f}", fontsize=11)
-    axes[0].set_ylabel("Amplitud")
+    axes[0].plot(
+        t_orig,
+        wf_orig,
+        color=color,
+        linewidth=0.3,
+        alpha=0.7,
+    )
+
+    axes[0].set_title(
+        f"ORIGINAL — {filename} | "
+        f"Duración: {len(wf_orig)/target_sr:.3f} s | "
+        f"Pico: {np.max(np.abs(wf_orig)):.4f}",
+        fontsize=11,
+        color="black",
+    )
+
+    axes[0].set_ylabel("Amplitud", color="black")
     axes[0].set_ylim([-1, 1])
     axes[0].grid(True, alpha=0.3)
 
     # --------------------------------------------------------------------------
-    # SENAL PROCESADA
+    # SEÑAL PROCESADA
     # --------------------------------------------------------------------------
-    axes[1].plot(t_proc, wf_proc, color=color, linewidth=0.3, alpha=0.9)
-    axes[1].set_title(f"PROCESADA (trimmed + normalized)  |  "
-                      f"Duración: {len(wf_proc)/target_sr:.3f}s  |  "
-                      f"Pico: {np.max(np.abs(wf_proc)):.4f}", fontsize=11)
-    axes[1].set_ylabel("Amplitud")
-    axes[1].set_xlabel("Tiempo (s)")
+    axes[1].plot(
+        t_proc,
+        wf_proc,
+        color=color,
+        linewidth=0.3,
+        alpha=0.9,
+    )
+
+    axes[1].set_title(
+        "PROCESADA (trimmed + normalized) | "
+        f"Duración: {len(wf_proc)/target_sr:.3f} s | "
+        f"Pico: {np.max(np.abs(wf_proc)):.4f}",
+        fontsize=11,
+        color="black",
+    )
+
+    axes[1].set_ylabel("Amplitud", color="black")
+    axes[1].set_xlabel("Tiempo (s)", color="black")
     axes[1].set_ylim([-1, 1])
     axes[1].grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.show()
+
+    return fig, axes
 
 
 def plot_duration_distribution(
     durations: list[float],
     stats: dict[str, float],
-) -> None:
+):
     """Histograma de duraciones con líneas de referencia en P95 y máximo."""
     arr = np.array(durations)
 
-    plt.figure(figsize=(12, 4))
-    plt.hist(arr, bins=25, color="#607D8B", edgecolor="white", alpha=0.8)
-    plt.axvline(stats["p95"], color="#F44336", linestyle="--", linewidth=2,
-                label=f"P95: {stats['p95']:.2f}s")
-    plt.axvline(stats["max"], color="#FF9800", linestyle="--", linewidth=2,
-                label=f"Máx: {stats['max']:.2f}s")
-    plt.xlabel("Duración (s)")
-    plt.ylabel("Frecuencia")
-    plt.title("Distribución de Duraciones — Señales Procesadas")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
+    # Crear figura
+    fig, ax = plt.subplots(
+        figsize=(12, 4),
+        facecolor="white"
+    )
+
+    # Configuración común del eje
+    ax.set_facecolor("white")
+    ax.tick_params(axis="both", colors="black")
+    ax.xaxis.label.set_color("black")
+    ax.yaxis.label.set_color("black")
+    ax.title.set_color("black")
+
+    for spine in ax.spines.values():
+        spine.set_color("black")
+
+    # --------------------------------------------------------------------------
+    # HISTOGRAMA
+    # --------------------------------------------------------------------------
+    ax.hist(
+        arr,
+        bins=25,
+        color="#607D8B",
+        edgecolor="white",
+        alpha=0.8,
+    )
+
+    # --------------------------------------------------------------------------
+    # LÍNEAS DE REFERENCIA
+    # --------------------------------------------------------------------------
+    ax.axvline(
+        stats["p95"],
+        color="#F44336",
+        linestyle="--",
+        linewidth=2,
+        label=f"P95: {stats['p95']:.2f}s",
+    )
+
+    ax.axvline(
+        stats["max"],
+        color="#FF9800",
+        linestyle="--",
+        linewidth=2,
+        label=f"Máx: {stats['max']:.2f}s",
+    )
+
+    ax.set_xlabel("Duración (s)", color="black")
+    ax.set_ylabel("Frecuencia", color="black")
+    ax.set_title(
+        "Distribución de Duraciones — Señales Procesadas",
+        fontsize=11,
+        color="black",
+    )
+
+    ax.legend(facecolor="white", edgecolor="black", labelcolor="black")
+    ax.grid(True, alpha=0.3)
+
     plt.tight_layout()
-    plt.show()
+
+    return fig, ax
+
 
 def plot_roc_curves(eval_results: dict) -> None:
     """Curvas ROC comparativas de todas las arquitecturas evaluadas."""

@@ -1,0 +1,37 @@
+{
+  "exp1_pcgita_a_neurovoz": {
+    "auc": 0.6020408163265306,
+    "acc": 0.5858585858585859,
+    "sens": 0.1836734693877551,
+    "spec": 0.98,
+    "threshold": 0.8763114213943481
+  },
+  "exp2_neurovoz_a_pcgita": {
+    "auc": 0.652,
+    "acc": 0.68,
+    "sens": 0.68,
+    "spec": 0.68,
+    "threshold": 0.9032252430915833
+  },
+  "exp3_combinado_mixto": {
+    "auc": 0.8875,
+    "acc": 0.825,
+    "sens": 0.65,
+    "spec": 1.0,
+    "threshold": 0.8002945184707642
+  },
+  "intra_corpus_ref": {
+    "original": {
+      "auc": 0.892,
+      "acc": 0.812,
+      "sens": 0.81,
+      "spec": 0.927
+    },
+    "neurovoz": {
+      "auc": 0.935,
+      "acc": 0.861,
+      "sens": 0.858,
+      "spec": 0.92
+    }
+  }
+}
